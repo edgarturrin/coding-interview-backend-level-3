@@ -1,8 +1,31 @@
-import { initializeServer, startServer } from "./server"
+import { environment } from './config';
+import { initializeServer } from './server';
+import { mysqlConnect } from './config/database/mysql';
+import { redisConnect } from './config/database/redis';
+import { log } from './config/logger';
 
-process.on('unhandledRejection', (err) => {
-    console.error(err)
-    process.exit(1)
-})
+const logger = log.withContext('App');
 
-await startServer()
+const bootstrap = async () => {
+    try {
+        await mysqlConnect();
+        await redisConnect();
+        
+        const server = await initializeServer();
+        await server.start();
+
+        logger.info(`Server running on ${server.info.uri}`);
+
+        process.on('SIGTERM', async () => {
+            logger.info('SIGTERM received. Starting graceful shutdown...');
+            await server.stop();
+            process.exit(0);
+        });
+        
+    } catch (error) {
+        logger.error('Failed to bootstrap application:', error);
+        process.exit(1);
+    }
+};
+
+bootstrap();

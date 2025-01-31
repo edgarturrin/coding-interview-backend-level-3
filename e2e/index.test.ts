@@ -1,5 +1,10 @@
 import { initializeServer } from '../src/server'
 import { Server } from '@hapi/hapi'
+import { mysqlConnect } from '../src/config/database/mysql'
+import { redisConnect, closeRedisConnection } from '../src/config/database/redis'
+import { sequelize } from '../src/config/database/mysql'
+import { jest, describe, beforeAll, beforeEach, afterAll, it, expect } from '@jest/globals'
+jest.setTimeout(120000);
 
 describe('E2E Tests', () => {
     let server: Server
@@ -9,9 +14,63 @@ describe('E2E Tests', () => {
         price: number
     }
 
+    beforeAll(async () => {
+        await mysqlConnect();
+        await redisConnect();
+        server = await initializeServer();
+        await server.start();
+    }, 30000)
+
     beforeEach(async () => {
-        server = await initializeServer()
+        // Limpiar todas las tablas
+        await sequelize.truncate({ cascade: true });
     })
+
+    afterAll(async () => {
+        try {
+            // 1. Primero detener el servidor para evitar nuevas peticiones
+            console.log("Deteniendo servidor...");
+            if (server) {
+                await server.stop();
+            }
+            
+            // 2. Luego cerrar las conexiones de base de datos
+            console.log("Cerrando conexiones a bases de datos...");
+            
+            // Cerrar MySQL con timeout
+            const closeMySQL = async () => {
+                try {
+                    // Forzar cierre de todas las conexiones del pool
+                    await sequelize.connectionManager.close();
+                    // Cerrar Sequelize
+                    await sequelize.close();
+                    console.log("MySQL cerrado");
+                } catch (error) {
+                    console.error("Error cerrando MySQL:", error);
+                    throw error;
+                }
+            };
+
+            // Cerrar Redis y MySQL con timeout
+            await Promise.race([
+                Promise.all([
+                    closeMySQL(),
+                    closeRedisConnection().then(() => console.log("Redis cerrado"))
+                ]),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout cerrando conexiones')), 10000)
+                )
+            ]).catch(error => {
+                console.error('Error o timeout cerrando conexiones:', error);
+                // Continuar con la ejecución incluso si hay timeout
+            });
+            
+            console.log("Finalizó afterAll");
+        } catch (error) {
+            console.error('Error durante la limpieza:', error);
+            throw error;
+        }
+    }, 240000)
 
     it('should get a response with status code 200', async () => {
         await server.inject({

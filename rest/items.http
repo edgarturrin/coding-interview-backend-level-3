@@ -1,0 +1,51 @@
+### Variables
+@baseUrl = http://localhost:3535
+
+### Get all items
+GET {{baseUrl}}/items
+Content-Type: application/json
+
+### Get item by ID
+GET {{baseUrl}}/items/1
+Content-Type: application/json
+
+### Create new item
+POST {{baseUrl}}/items
+Content-Type: application/json
+
+{
+    "name": "Test Item",
+    "price": 100
+}
+
+### Update item
+PUT {{baseUrl}}/items/1
+Content-Type: application/json
+
+{
+    "name": "Updated Item",
+    "price": 200
+}
+
+### Delete item
+DELETE {{baseUrl}}/items/1
+Content-Type: application/json
+
+### Validation Error Examples
+
+### Create item without price (should fail)
+POST {{baseUrl}}/items
+Content-Type: application/json
+
+{
+    "name": "Invalid Item"
+}
+
+### Create item with negative price (should fail)
+POST {{baseUrl}}/items
+Content-Type: application/json
+
+{
+    "name": "Invalid Item",
+    "price": -100
+}
